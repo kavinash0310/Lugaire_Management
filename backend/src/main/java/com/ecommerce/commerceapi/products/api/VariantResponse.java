@@ -1,0 +1,1 @@
+package com.ecommerce.commerceapi.products.api; import java.math.BigDecimal; public record VariantResponse(Long id,String sku,Long colorId,String colorName,Long sizeId,String sizeName,BigDecimal costPrice,BigDecimal sellingPrice,BigDecimal mrp,int reorderLevel,boolean active){}

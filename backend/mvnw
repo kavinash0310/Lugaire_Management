@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+BASE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec java -classpath "$BASE_DIR/.mvn/wrapper/maven-wrapper.jar" "-Dmaven.multiModuleProjectDirectory=$BASE_DIR" "-Dmaven.user.home=$BASE_DIR/.mvn" org.apache.maven.wrapper.MavenWrapperMain "-Dmaven.repo.local=$BASE_DIR/.mvn/repository" "$@"

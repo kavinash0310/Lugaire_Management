@@ -1,0 +1,1 @@
+package com.ecommerce.commerceapi.products.api; import com.ecommerce.commerceapi.products.domain.ProductStatus; import jakarta.validation.constraints.NotNull; public record ProductStatusRequest(@NotNull ProductStatus status){}

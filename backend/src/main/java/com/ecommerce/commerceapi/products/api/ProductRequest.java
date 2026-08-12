@@ -1,0 +1,3 @@
+package com.ecommerce.commerceapi.products.api;
+import com.ecommerce.commerceapi.products.domain.SourcingType; import jakarta.validation.constraints.*; import java.math.BigDecimal; import java.util.List;
+public record ProductRequest(@NotBlank @Size(max=200) String productName, @NotNull Long brandId, @NotNull Long categoryId, String description, String fabric, String fit, String neckType, String sleeveType, String gender, @NotNull SourcingType sourcingType, @NotNull @DecimalMin("0") BigDecimal productCost, @NotNull @DecimalMin("0") BigDecimal sellingPrice, @NotNull @DecimalMin("0") BigDecimal mrp, @NotEmpty List<@NotNull Long> colorIds, @NotEmpty List<@NotNull Long> sizeIds, @Min(0) Integer reorderLevel) {}

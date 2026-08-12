@@ -1,0 +1,1 @@
+-- Phase 1 baseline. Business tables begin only when their corresponding module is implemented.

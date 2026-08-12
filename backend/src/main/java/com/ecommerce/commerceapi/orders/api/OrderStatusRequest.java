@@ -1,0 +1,1 @@
+package com.ecommerce.commerceapi.orders.api; import com.ecommerce.commerceapi.orders.domain.*; import jakarta.validation.constraints.NotNull; public record OrderStatusRequest(@NotNull OrderStatus status){}

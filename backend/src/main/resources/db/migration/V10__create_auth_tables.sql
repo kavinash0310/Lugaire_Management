@@ -1,0 +1,27 @@
+CREATE TABLE roles (
+    id BIGSERIAL PRIMARY KEY,
+    code VARCHAR(40) NOT NULL UNIQUE,
+    name VARCHAR(120) NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(120) NOT NULL,
+    email VARCHAR(160) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    role_id BIGINT NOT NULL REFERENCES roles(id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_users_role_id ON users(role_id);
+
+INSERT INTO roles (code, name, active) VALUES
+    ('ADMIN', 'Administrator', TRUE),
+    ('MANAGER', 'Manager', TRUE),
+    ('STAFF', 'Staff', TRUE)
+ON CONFLICT (code) DO NOTHING;
