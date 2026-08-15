@@ -1,6 +1,6 @@
 package com.ecommerce.commerceapi.settlements.domain;
 
-import com.ecommerce.commerceapi.orders.domain.OrderPlatform;
+import com.ecommerce.commerceapi.marketplaces.domain.Marketplace;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -18,9 +18,9 @@ public class Settlement {
     @Column(name = "settlement_id", nullable = false)
     private String settlementId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private OrderPlatform platform;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "marketplace_id", nullable = false)
+    private Marketplace marketplace;
 
     @Column(name = "settlement_date", nullable = false)
     private LocalDate settlementDate;
@@ -85,8 +85,8 @@ public class Settlement {
     public Long getId() { return id; }
     public String getSettlementId() { return settlementId; }
     public void setSettlementId(String settlementId) { this.settlementId = settlementId; }
-    public OrderPlatform getPlatform() { return platform; }
-    public void setPlatform(OrderPlatform platform) { this.platform = platform; }
+    public Marketplace getMarketplace() { return marketplace; }
+    public void setMarketplace(Marketplace marketplace) { this.marketplace = marketplace; }
     public LocalDate getSettlementDate() { return settlementDate; }
     public void setSettlementDate(LocalDate settlementDate) { this.settlementDate = settlementDate; }
     public LocalDate getSettlementPeriodStart() { return settlementPeriodStart; }

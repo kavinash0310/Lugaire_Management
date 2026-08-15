@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { api } from "@/lib/api";
 
@@ -47,7 +47,7 @@ export default function NewReturnPage() {
     }
   }
 
-  async function save(event: React.FormEvent) {
+  async function save(event: FormEvent) {
     event.preventDefault();
     if (Number(quantity) > remainingQuantity) {
       setMessage("Return quantity cannot exceed the remaining returnable quantity.");

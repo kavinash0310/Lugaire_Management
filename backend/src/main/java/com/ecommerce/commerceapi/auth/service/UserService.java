@@ -5,6 +5,7 @@ import com.ecommerce.commerceapi.auth.api.UserCreateRequest;
 import com.ecommerce.commerceapi.auth.api.UserPageResponse;
 import com.ecommerce.commerceapi.auth.api.UserResponse;
 import com.ecommerce.commerceapi.auth.api.UserUpdateRequest;
+import com.ecommerce.commerceapi.audit.service.AuditLogService;
 import com.ecommerce.commerceapi.auth.domain.Role;
 import com.ecommerce.commerceapi.auth.domain.UserAccount;
 import com.ecommerce.commerceapi.auth.repository.RoleRepository;
@@ -12,6 +13,7 @@ import com.ecommerce.commerceapi.auth.repository.UserAccountRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -24,11 +26,13 @@ public class UserService {
     private final UserAccountRepository userAccountRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditLogService auditLogs;
 
-    public UserService(UserAccountRepository userAccountRepository, RoleRepository roleRepository, PasswordEncoder passwordEncoder) {
+    public UserService(UserAccountRepository userAccountRepository, RoleRepository roleRepository, PasswordEncoder passwordEncoder, AuditLogService auditLogs) {
         this.userAccountRepository = userAccountRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.auditLogs = auditLogs;
     }
 
     public UserPageResponse list(String query, String roleCode, Boolean active, Pageable pageable) {
@@ -48,23 +52,64 @@ public class UserService {
         userAccount.setPasswordHash(passwordEncoder.encode(request.password()));
         userAccount.setRole(role);
         userAccount.setActive(request.active());
-        return toResponse(userAccountRepository.save(userAccount));
+        UserAccount saved = userAccountRepository.save(userAccount);
+        auditLogs.log(
+                "CREATE",
+                "USER",
+                "User",
+                String.valueOf(saved.getId()),
+                "User created",
+                null,
+                Map.of(
+                        "name", saved.getName(),
+                        "email", saved.getEmail(),
+                        "role", saved.getRole().getCode(),
+                        "active", String.valueOf(saved.isActive())));
+        return toResponse(saved);
     }
 
     public UserResponse update(Long id, UserUpdateRequest request) {
         UserAccount userAccount = requireUser(id);
+        Map<String, Object> oldValue = Map.of(
+                "name", userAccount.getName(),
+                "email", userAccount.getEmail(),
+                "role", userAccount.getRole().getCode(),
+                "active", String.valueOf(userAccount.isActive()));
         Role role = requireRole(request.roleCode());
         userAccount.setName(request.name().trim());
         userAccount.setEmail(request.email().trim().toLowerCase());
         userAccount.setRole(role);
         userAccount.setActive(request.active());
-        return toResponse(userAccountRepository.save(userAccount));
+        UserAccount saved = userAccountRepository.save(userAccount);
+        auditLogs.log(
+                "UPDATE",
+                "USER",
+                "User",
+                String.valueOf(saved.getId()),
+                "User updated",
+                oldValue,
+                Map.of(
+                        "name", saved.getName(),
+                        "email", saved.getEmail(),
+                        "role", saved.getRole().getCode(),
+                        "active", String.valueOf(saved.isActive())));
+        return toResponse(saved);
     }
 
     public UserResponse setActive(Long id, boolean active) {
         UserAccount userAccount = requireUser(id);
+        boolean previous = userAccount.isActive();
         userAccount.setActive(active);
-        return toResponse(userAccountRepository.save(userAccount));
+        UserAccount saved = userAccountRepository.save(userAccount);
+        auditLogs.log(
+                active ? "ACTIVATE" : "DEACTIVATE",
+                "USER",
+                "User",
+                String.valueOf(saved.getId()),
+                "User " + (active ? "activated" : "deactivated"),
+                Map.of("active", String.valueOf(previous)),
+                Map.of("active", String.valueOf(saved.isActive())));
+        return toResponse(saved);
     }
 
     public SessionUserResponse current(UserAccount userAccount) {

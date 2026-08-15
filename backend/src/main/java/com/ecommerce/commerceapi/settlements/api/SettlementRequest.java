@@ -1,19 +1,17 @@
 package com.ecommerce.commerceapi.settlements.api;
 
-import com.ecommerce.commerceapi.orders.domain.OrderPlatform;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
 public record SettlementRequest(
         @NotBlank String settlementId,
-        @NotNull OrderPlatform platform,
+        @NotNull Long marketplaceId,
         @NotNull LocalDate settlementDate,
         @NotNull LocalDate settlementPeriodStart,
         @NotNull LocalDate settlementPeriodEnd,

@@ -17,10 +17,13 @@ import com.ecommerce.commerceapi.purchases.domain.PurchasePaymentStatus;
 import com.ecommerce.commerceapi.purchases.domain.PurchaseStatus;
 import com.ecommerce.commerceapi.purchases.repository.PurchaseItemRepository;
 import com.ecommerce.commerceapi.purchases.repository.PurchaseRepository;
+import com.ecommerce.commerceapi.audit.service.AuditLogService;
 import com.ecommerce.commerceapi.suppliers.repository.SupplierRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,14 +35,16 @@ public class PurchaseService {
     private final SupplierRepository suppliers;
     private final ProductVariantRepository variants;
     private final InventoryService inventory;
+    private final AuditLogService auditLogs;
 
     public PurchaseService(PurchaseRepository purchases, PurchaseItemRepository items, SupplierRepository suppliers,
-                           ProductVariantRepository variants, InventoryService inventory) {
+                           ProductVariantRepository variants, InventoryService inventory, AuditLogService auditLogs) {
         this.purchases = purchases;
         this.items = items;
         this.suppliers = suppliers;
         this.variants = variants;
         this.inventory = inventory;
+        this.auditLogs = auditLogs;
     }
 
     @Transactional(readOnly = true)
@@ -101,7 +106,16 @@ public class PurchaseService {
         if (purchase.getDueAmount().compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("Paid amount cannot exceed total amount");
         }
-        return response(purchases.save(purchase));
+        Purchase saved = purchases.save(purchase);
+        auditLogs.log(
+                "CREATE",
+                "PURCHASE",
+                "Purchase",
+                String.valueOf(saved.getId()),
+                "Purchase created",
+                null,
+                purchaseState(saved));
+        return response(saved);
     }
 
     @Transactional
@@ -118,6 +132,7 @@ public class PurchaseService {
         }
 
         boolean inventoryWasReceived = purchase.isInventoryReceived();
+        Map<String, Object> oldValue = purchaseState(purchase);
         if (inventoryWasReceived) {
             reverseInventory(purchase);
             purchase.setInventoryReceived(false);
@@ -159,12 +174,22 @@ public class PurchaseService {
             saved.setInventoryReceived(true);
             saved = purchases.save(saved);
         }
+        auditLogs.log(
+                "UPDATE",
+                "PURCHASE",
+                "Purchase",
+                String.valueOf(saved.getId()),
+                "Purchase updated",
+                oldValue,
+                purchaseState(saved));
         return response(saved);
     }
 
     @Transactional
     public PurchaseResponse updateStatus(Long id, PurchaseStatusRequest request) {
         Purchase purchase = purchases.findById(id).orElseThrow(() -> new EntityNotFoundException("Purchase not found"));
+        boolean inventoryReceivedBefore = purchase.isInventoryReceived();
+        PurchaseStatus previous = purchase.getPurchaseStatus();
         if (purchase.getPurchaseStatus() == request.status()) {
             if (request.status() == PurchaseStatus.RECEIVED && purchase.isInventoryReceived()) {
                 throw new IllegalArgumentException("Purchase has already been received");
@@ -183,14 +208,33 @@ public class PurchaseService {
             purchase.setInventoryReceived(false);
         }
         purchase.setPurchaseStatus(request.status());
-        return response(purchases.save(purchase));
+        Purchase saved = purchases.save(purchase);
+        auditLogs.log(
+                "STATUS_CHANGE",
+                "PURCHASE",
+                "Purchase",
+                String.valueOf(saved.getId()),
+                "Purchase status changed",
+                Map.of("purchaseStatus", previous.name(), "inventoryReceived", String.valueOf(inventoryReceivedBefore)),
+                Map.of("purchaseStatus", saved.getPurchaseStatus().name(), "inventoryReceived", String.valueOf(saved.isInventoryReceived())));
+        return response(saved);
     }
 
     @Transactional
     public PurchaseResponse updatePaymentStatus(Long id, PurchasePaymentStatusRequest request) {
         Purchase purchase = purchases.findById(id).orElseThrow(() -> new EntityNotFoundException("Purchase not found"));
+        PurchasePaymentStatus previous = purchase.getPaymentStatus();
         purchase.setPaymentStatus(request.status());
-        return response(purchases.save(purchase));
+        Purchase saved = purchases.save(purchase);
+        auditLogs.log(
+                "STATUS_CHANGE",
+                "PURCHASE",
+                "Purchase",
+                String.valueOf(saved.getId()),
+                "Purchase payment status changed",
+                Map.of("paymentStatus", previous.name()),
+                Map.of("paymentStatus", saved.getPaymentStatus().name()));
+        return response(saved);
     }
 
     private void receiveInventory(Purchase purchase) {
@@ -202,6 +246,7 @@ public class PurchaseService {
                 "PURCHASE",
                 purchase.getId() == null ? null : purchase.getId().toString(),
                 "Purchase " + purchase.getPurchaseId(),
+                null,
                 purchase.getPurchaseDate())));
     }
 
@@ -214,6 +259,7 @@ public class PurchaseService {
                 "PURCHASE_REVERSAL",
                 purchase.getId() == null ? null : purchase.getId().toString(),
                 "Reversal for purchase " + purchase.getPurchaseId(),
+                null,
                 purchase.getPurchaseDate())));
     }
 
@@ -238,6 +284,23 @@ public class PurchaseService {
                 purchase.getPurchaseDate(), purchase.getInvoiceNumber(), purchase.getInvoiceDate(), purchase.getSubtotal(),
                 purchase.getTax(), purchase.getOtherCharges(), purchase.getTotalAmount(), purchase.getPaymentStatus().name(),
                 purchase.getPaidAmount(), purchase.getDueAmount(), purchase.getPurchaseStatus().name(), purchase.isInventoryReceived());
+    }
+
+    private Map<String, Object> purchaseState(Purchase purchase) {
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("purchaseId", purchase.getPurchaseId());
+        state.put("supplier", purchase.getSupplier() == null ? null : purchase.getSupplier().getSupplierId());
+        state.put("purchaseDate", purchase.getPurchaseDate());
+        state.put("invoiceNumber", purchase.getInvoiceNumber());
+        state.put("invoiceDate", purchase.getInvoiceDate());
+        state.put("subtotal", purchase.getSubtotal());
+        state.put("tax", purchase.getTax());
+        state.put("otherCharges", purchase.getOtherCharges());
+        state.put("totalAmount", purchase.getTotalAmount());
+        state.put("paymentStatus", purchase.getPaymentStatus() == null ? null : purchase.getPaymentStatus().name());
+        state.put("purchaseStatus", purchase.getPurchaseStatus() == null ? null : purchase.getPurchaseStatus().name());
+        state.put("inventoryReceived", purchase.isInventoryReceived());
+        return state;
     }
 
     private PurchaseDetailResponse detail(Purchase purchase) {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { api } from "@/lib/api";
+import { fetchMarketplaces, type Marketplace } from "@/lib/marketplaces";
 
 type Settlement = {
   id: number;
@@ -32,24 +33,29 @@ const toCurrency = (value: number) => new Intl.NumberFormat("en-IN", { style: "c
 export default function SettlementsPage() {
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState("");
-  const [platform, setPlatform] = useState("");
+  const [marketplaceId, setMarketplaceId] = useState("");
   const [status, setStatus] = useState("");
   const [reconciliationStatus, setReconciliationStatus] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
   const [data, setData] = useState<Page>({ content: [], page: 0, totalPages: 0, totalElements: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    fetchMarketplaces().then(setMarketplaces).catch(() => setMarketplaces([]));
+  }, []);
+
   const query = useMemo(() => {
     const params = new URLSearchParams({ search, page: String(page), size: "20" });
-    if (platform) params.set("platform", platform);
+    if (marketplaceId) params.set("marketplaceId", marketplaceId);
     if (status) params.set("status", status);
     if (reconciliationStatus) params.set("reconciliationStatus", reconciliationStatus);
     if (fromDate) params.set("fromDate", fromDate);
     if (toDate) params.set("toDate", toDate);
     return params.toString();
-  }, [search, page, platform, status, reconciliationStatus, fromDate, toDate]);
+  }, [search, page, marketplaceId, status, reconciliationStatus, fromDate, toDate]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,9 +96,13 @@ export default function SettlementsPage() {
 
         <div className="mt-6 grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-3 xl:grid-cols-6">
           <input value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} placeholder="Search settlement ID" className="rounded border px-3 py-2" />
-          <select value={platform} onChange={(event) => { setPlatform(event.target.value); setPage(0); }} className="rounded border bg-background px-3 py-2">
-            <option value="">All platforms</option>
-            {["MEESHO", "AMAZON", "FLIPKART", "WEBSITE", "OTHER"].map((value) => <option key={value} value={value}>{value}</option>)}
+          <select value={marketplaceId} onChange={(event) => { setMarketplaceId(event.target.value); setPage(0); }} className="rounded border bg-background px-3 py-2">
+            <option value="">All marketplaces</option>
+            {marketplaces.map((marketplace) => (
+              <option key={marketplace.id} value={marketplace.id}>
+                {marketplace.code} · {marketplace.name}
+              </option>
+            ))}
           </select>
           <select value={status} onChange={(event) => { setStatus(event.target.value); setPage(0); }} className="rounded border bg-background px-3 py-2">
             <option value="">All statuses</option>
@@ -113,7 +123,7 @@ export default function SettlementsPage() {
               <thead className="bg-muted text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3">Settlement ID</th>
-                  <th className="px-4 py-3">Platform</th>
+                  <th className="px-4 py-3">Marketplace</th>
                   <th className="px-4 py-3">Date</th>
                   <th className="px-4 py-3">Period</th>
                   <th className="px-4 py-3">Gross</th>

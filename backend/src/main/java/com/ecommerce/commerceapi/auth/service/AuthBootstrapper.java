@@ -23,7 +23,7 @@ public class AuthBootstrapper implements ApplicationRunner {
             @Value("${app.auth.bootstrap.enabled:true}") boolean enabled,
             @Value("${app.auth.bootstrap.name:Administrator}") String bootstrapName,
             @Value("${app.auth.bootstrap.email:admin@lugaire.local}") String bootstrapEmail,
-            @Value("${app.auth.bootstrap.password:Admin@12345}") String bootstrapPassword,
+            @Value("${app.auth.bootstrap.password:change_me_for_local_development}") String bootstrapPassword,
             @Value("${app.auth.bootstrap.role-code:ADMIN}") String bootstrapRoleCode,
             RoleService roleService,
             UserAccountRepository userAccountRepository,

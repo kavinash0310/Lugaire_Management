@@ -1,6 +1,5 @@
 package com.ecommerce.commerceapi.returns.api;
 
-import com.ecommerce.commerceapi.orders.domain.OrderPlatform;
 import com.ecommerce.commerceapi.returns.domain.ReturnStatus;
 import com.ecommerce.commerceapi.returns.domain.ReturnType;
 import com.ecommerce.commerceapi.returns.service.ReturnService;
@@ -30,14 +29,14 @@ public class ReturnController {
 
     @GetMapping
     public Page<ReturnResponse> list(@RequestParam(defaultValue = "") String search,
-                                     @RequestParam(required = false) OrderPlatform platform,
+                                     @RequestParam(required = false) Long marketplaceId,
                                      @RequestParam(required = false) ReturnType type,
                                      @RequestParam(required = false) ReturnStatus status,
                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
                                      @RequestParam(defaultValue = "0") int page,
                                      @RequestParam(defaultValue = "20") int size) {
-        return service.list(search, platform, type, status, fromDate, toDate, page, size);
+        return service.list(search, marketplaceId, type, status, fromDate, toDate, page, size);
     }
 
     @GetMapping("/{id}")

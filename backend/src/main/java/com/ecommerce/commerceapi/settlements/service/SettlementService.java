@@ -1,9 +1,11 @@
 package com.ecommerce.commerceapi.settlements.service;
 
 import com.ecommerce.commerceapi.orders.domain.Order;
-import com.ecommerce.commerceapi.orders.domain.OrderPlatform;
 import com.ecommerce.commerceapi.orders.domain.PaymentStatus;
 import com.ecommerce.commerceapi.orders.repository.OrderRepository;
+import com.ecommerce.commerceapi.marketplaces.domain.Marketplace;
+import com.ecommerce.commerceapi.marketplaces.repository.MarketplaceRepository;
+import com.ecommerce.commerceapi.audit.service.AuditLogService;
 import com.ecommerce.commerceapi.settlements.api.*;
 import com.ecommerce.commerceapi.settlements.domain.ReconciliationStatus;
 import com.ecommerce.commerceapi.settlements.domain.Settlement;
@@ -16,6 +18,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.springframework.data.domain.PageRequest;
@@ -27,18 +31,22 @@ public class SettlementService {
     private final SettlementRepository settlements;
     private final SettlementItemRepository settlementItems;
     private final OrderRepository orders;
+    private final MarketplaceRepository marketplaces;
+    private final AuditLogService auditLogs;
 
-    public SettlementService(SettlementRepository settlements, SettlementItemRepository settlementItems, OrderRepository orders) {
+    public SettlementService(SettlementRepository settlements, SettlementItemRepository settlementItems, OrderRepository orders, MarketplaceRepository marketplaces, AuditLogService auditLogs) {
         this.settlements = settlements;
         this.settlementItems = settlementItems;
         this.orders = orders;
+        this.marketplaces = marketplaces;
+        this.auditLogs = auditLogs;
     }
 
     @Transactional(readOnly = true)
-    public SettlementPageResponse list(String search, OrderPlatform platform, SettlementStatus status,
+    public SettlementPageResponse list(String search, Long marketplaceId, SettlementStatus status,
                                        ReconciliationStatus reconciliationStatus, LocalDate fromDate, LocalDate toDate,
                                        int page, int size) {
-        var results = settlements.search(search == null ? "" : search, platform, status, reconciliationStatus, fromDate, toDate, PageRequest.of(page, Math.min(size, 100)));
+        var results = settlements.search(search == null ? "" : search, marketplaceId, status, reconciliationStatus, fromDate, toDate, PageRequest.of(page, Math.min(size, 100)));
         return new SettlementPageResponse(results.map(this::summary).toList(), results.getNumber(), results.getSize(), results.getTotalElements(), results.getTotalPages());
     }
 
@@ -50,29 +58,58 @@ public class SettlementService {
     @Transactional
     public SettlementDetailResponse create(SettlementRequest request) {
         ensureSettlementIdAvailable(request.settlementId(), null);
+        Marketplace marketplace = marketplaces.findById(request.marketplaceId())
+                .orElseThrow(() -> new EntityNotFoundException("Marketplace not found"));
+        if (!marketplace.isActive()) {
+            throw new IllegalArgumentException("Marketplace is inactive");
+        }
         Settlement settlement = new Settlement();
+        settlement.setMarketplace(marketplace);
         applyHeader(settlement, request);
         applyItems(settlement, request.items(), Set.of());
         recalculate(settlement);
         validateProvidedTotals(request, settlement);
         settlement = settlements.save(settlement);
         applyOrderPaymentStatus(settlement);
+        auditLogs.log(
+                "CREATE",
+                "SETTLEMENT",
+                "Settlement",
+                String.valueOf(settlement.getId()),
+                "Settlement created",
+                null,
+                settlementState(settlement));
         return detail(settlement);
     }
 
     @Transactional
     public SettlementDetailResponse update(Long id, SettlementRequest request) {
         Settlement settlement = settlements.findById(id).orElseThrow(() -> new EntityNotFoundException("Settlement not found"));
+        Map<String, Object> oldValue = settlementState(settlement);
         Set<Long> existingOrderIds = settlement.getItems().stream().map(item -> item.getOrder().getId()).collect(java.util.stream.Collectors.toSet());
         resetOrderPaymentStatus(settlement.getItems());
         settlement.getItems().clear();
         ensureSettlementIdAvailable(request.settlementId(), settlement.getId());
+        Marketplace marketplace = marketplaces.findById(request.marketplaceId())
+                .orElseThrow(() -> new EntityNotFoundException("Marketplace not found"));
+        if (!marketplace.isActive()) {
+            throw new IllegalArgumentException("Marketplace is inactive");
+        }
+        settlement.setMarketplace(marketplace);
         applyHeader(settlement, request);
         applyItems(settlement, request.items(), existingOrderIds);
         recalculate(settlement);
         validateProvidedTotals(request, settlement);
         settlement = settlements.save(settlement);
         applyOrderPaymentStatus(settlement);
+        auditLogs.log(
+                "UPDATE",
+                "SETTLEMENT",
+                "Settlement",
+                String.valueOf(settlement.getId()),
+                "Settlement updated",
+                oldValue,
+                settlementState(settlement));
         return detail(settlement);
     }
 
@@ -83,15 +120,25 @@ public class SettlementService {
             throw new IllegalArgumentException("Invalid settlement status transition");
         }
         validateStatusAgainstAmounts(settlement, request.status());
+        SettlementStatus previous = settlement.getStatus();
         settlement.setStatus(request.status());
         settlement = settlements.save(settlement);
         applyOrderPaymentStatus(settlement);
+        auditLogs.log(
+                "STATUS_CHANGE",
+                "SETTLEMENT",
+                "Settlement",
+                String.valueOf(settlement.getId()),
+                "Settlement status changed",
+                Map.of("status", previous.name(), "reconciliationStatus", settlement.getReconciliationStatus().name()),
+                Map.of("status", settlement.getStatus().name(), "reconciliationStatus", settlement.getReconciliationStatus().name()));
         return detail(settlement);
     }
 
     @Transactional
     public SettlementDetailResponse reconcile(Long id) {
         Settlement settlement = settlements.findById(id).orElseThrow(() -> new EntityNotFoundException("Settlement not found"));
+        Map<String, Object> oldValue = settlementState(settlement);
         recalculate(settlement);
         settlement.setStatus(determineStatus(settlement.getReceivedAmount(), settlement.getNetAmount()));
         if (settlement.getReconciliationStatus() == ReconciliationStatus.MATCHED && settlement.getStatus() == SettlementStatus.RECEIVED) {
@@ -99,6 +146,14 @@ public class SettlementService {
         }
         settlement = settlements.save(settlement);
         applyOrderPaymentStatus(settlement);
+        auditLogs.log(
+                "UPDATE",
+                "SETTLEMENT",
+                "Settlement",
+                String.valueOf(settlement.getId()),
+                "Settlement reconciled",
+                oldValue,
+                settlementState(settlement));
         return detail(settlement);
     }
 
@@ -107,7 +162,6 @@ public class SettlementService {
             throw new IllegalArgumentException("Settlement period end must be on or after the start date");
         }
         settlement.setSettlementId(request.settlementId().trim());
-        settlement.setPlatform(request.platform());
         settlement.setSettlementDate(request.settlementDate());
         settlement.setSettlementPeriodStart(request.settlementPeriodStart());
         settlement.setSettlementPeriodEnd(request.settlementPeriodEnd());
@@ -124,6 +178,9 @@ public class SettlementService {
                 throw new IllegalArgumentException("This order is already attached to a settlement");
             }
             Order order = orders.findById(requestItem.orderId()).orElseThrow(() -> new EntityNotFoundException("Order not found"));
+            if (!order.getMarketplace().getId().equals(settlement.getMarketplace().getId())) {
+                throw new IllegalArgumentException("Settlement orders must belong to the selected marketplace");
+            }
             SettlementItem item = new SettlementItem();
             item.setSettlement(settlement);
             item.setOrder(order);
@@ -270,7 +327,7 @@ public class SettlementService {
     }
 
     private SettlementResponse summary(Settlement settlement) {
-        return new SettlementResponse(settlement.getId(), settlement.getSettlementId(), settlement.getPlatform().name(), settlement.getSettlementDate(),
+        return new SettlementResponse(settlement.getId(), settlement.getSettlementId(), settlement.getMarketplace().getCode(), settlement.getSettlementDate(),
                 settlement.getSettlementPeriodStart(), settlement.getSettlementPeriodEnd(), settlement.getGrossAmount(), settlement.getMarketplaceFees(),
                 settlement.getShippingCharges(), settlement.getReturnCharges(), settlement.getOtherCharges(), settlement.getNetAmount(),
                 settlement.getReceivedAmount(), settlement.getReceivedAmount().subtract(settlement.getNetAmount()), settlement.getStatus().name(),
@@ -278,7 +335,7 @@ public class SettlementService {
     }
 
     private SettlementDetailResponse detail(Settlement settlement) {
-        return new SettlementDetailResponse(settlement.getId(), settlement.getSettlementId(), settlement.getPlatform().name(), settlement.getSettlementDate(),
+        return new SettlementDetailResponse(settlement.getId(), settlement.getSettlementId(), settlement.getMarketplace().getCode(), settlement.getSettlementDate(),
                 settlement.getSettlementPeriodStart(), settlement.getSettlementPeriodEnd(), settlement.getGrossAmount(), settlement.getMarketplaceFees(),
                 settlement.getShippingCharges(), settlement.getReturnCharges(), settlement.getOtherCharges(), settlement.getNetAmount(),
                 settlement.getReceivedAmount(), settlement.getReceivedAmount().subtract(settlement.getNetAmount()), settlement.getStatus().name(),
@@ -289,5 +346,19 @@ public class SettlementService {
         return new SettlementItemResponse(item.getId(), item.getOrder().getId(), item.getOrderIdSnapshot(), item.getOrderDateSnapshot(),
                 item.getGrossOrderAmount(), item.getMarketplaceFee(), item.getShippingCharge(), item.getReturnCharge(), item.getOtherCharge(),
                 item.getExpectedNetSettlement(), item.getSettledAmount(), item.getDifference(), item.getReconciliationStatus().name(), item.getRemarks());
+    }
+
+    private Map<String, Object> settlementState(Settlement settlement) {
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("settlementId", settlement.getSettlementId());
+        state.put("marketplace", settlement.getMarketplace() == null ? null : settlement.getMarketplace().getCode());
+        state.put("settlementDate", settlement.getSettlementDate());
+        state.put("status", settlement.getStatus() == null ? null : settlement.getStatus().name());
+        state.put("reconciliationStatus", settlement.getReconciliationStatus() == null ? null : settlement.getReconciliationStatus().name());
+        state.put("grossAmount", settlement.getGrossAmount());
+        state.put("netAmount", settlement.getNetAmount());
+        state.put("receivedAmount", settlement.getReceivedAmount());
+        state.put("itemCount", settlement.getItems() == null ? 0 : settlement.getItems().size());
+        return state;
     }
 }

@@ -26,5 +26,5 @@ app:
       enabled: ${AUTH_BOOTSTRAP_ENABLED:true}
       name: ${AUTH_BOOTSTRAP_NAME:Administrator}
       email: ${AUTH_BOOTSTRAP_EMAIL:admin@lugaire.local}
-      password: ${AUTH_BOOTSTRAP_PASSWORD:Admin@12345}
+      password: ${AUTH_BOOTSTRAP_PASSWORD:change_me_for_local_development}
       role-code: ${AUTH_BOOTSTRAP_ROLE:ADMIN}

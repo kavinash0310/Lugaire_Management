@@ -28,6 +28,6 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
     private void write(HttpServletResponse response, HttpStatus status, String path) throws IOException {
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        objectMapper.writeValue(response.getWriter(), new ApiError(Instant.now(), status.value(), status.getReasonPhrase(), path));
+        objectMapper.writeValue(response.getWriter(), new ApiError(Instant.now(), status.value(), status.getReasonPhrase(), "Authentication required", path));
     }
 }

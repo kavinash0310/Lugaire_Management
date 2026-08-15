@@ -5,8 +5,10 @@ import com.ecommerce.commerceapi.auth.api.SessionUserResponse;
 import com.ecommerce.commerceapi.auth.domain.UserAccount;
 import com.ecommerce.commerceapi.auth.repository.UserAccountRepository;
 import com.ecommerce.commerceapi.auth.security.AuthenticatedUser;
+import com.ecommerce.commerceapi.audit.service.AuditLogService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import java.util.Map;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -18,10 +20,12 @@ import org.springframework.stereotype.Service;
 public class AuthService {
     private final UserAccountRepository userAccountRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditLogService auditLogs;
 
-    public AuthService(UserAccountRepository userAccountRepository, PasswordEncoder passwordEncoder) {
+    public AuthService(UserAccountRepository userAccountRepository, PasswordEncoder passwordEncoder, AuditLogService auditLogs) {
         this.userAccountRepository = userAccountRepository;
         this.passwordEncoder = passwordEncoder;
+        this.auditLogs = auditLogs;
     }
 
     public SessionUserResponse login(LoginRequest request, HttpServletRequest servletRequest) {
@@ -44,10 +48,22 @@ public class AuthService {
         HttpSession session = servletRequest.getSession(true);
         session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
         servletRequest.changeSessionId();
+        auditLogs.log(
+                principal,
+                "LOGIN",
+                "AUTH",
+                "User",
+                String.valueOf(userAccount.getId()),
+                "User logged in",
+                null,
+                Map.of("email", userAccount.getEmail(), "name", userAccount.getName(), "role", userAccount.getRole().getCode()));
         return toResponse(userAccount);
     }
 
     public SessionUserResponse me(AuthenticatedUser principal) {
+        if (principal == null) {
+            throw new AuthenticationFailedException("Session is no longer valid");
+        }
         UserAccount userAccount = userAccountRepository.findById(principal.id())
                 .orElseThrow(() -> new AuthenticationFailedException("Session is no longer valid"));
         if (!userAccount.isActive()) {
@@ -57,11 +73,32 @@ public class AuthService {
     }
 
     public void logout(HttpServletRequest request) {
+        AuthenticatedUser currentUser = currentUser();
+        if (currentUser != null) {
+            auditLogs.log(
+                    currentUser,
+                    "LOGOUT",
+                    "AUTH",
+                    "User",
+                    String.valueOf(currentUser.id()),
+                    "User logged out",
+                    null,
+                    Map.of("email", currentUser.email(), "name", currentUser.name(), "role", currentUser.roleCode()));
+        }
         var session = request.getSession(false);
         if (session != null) {
             session.invalidate();
         }
         SecurityContextHolder.clearContext();
+    }
+
+    private AuthenticatedUser currentUser() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+        Object principal = authentication.getPrincipal();
+        return principal instanceof AuthenticatedUser authenticatedUser ? authenticatedUser : null;
     }
 
     private SessionUserResponse toResponse(UserAccount userAccount) {

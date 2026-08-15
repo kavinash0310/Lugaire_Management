@@ -4,7 +4,6 @@ import com.ecommerce.commerceapi.expenses.domain.Expense;
 import com.ecommerce.commerceapi.expenses.domain.ExpensePaymentStatus;
 import com.ecommerce.commerceapi.expenses.repository.ExpenseRepository;
 import com.ecommerce.commerceapi.orders.domain.Order;
-import com.ecommerce.commerceapi.orders.domain.OrderPlatform;
 import com.ecommerce.commerceapi.orders.domain.OrderStatus;
 import com.ecommerce.commerceapi.orders.domain.PaymentStatus;
 import com.ecommerce.commerceapi.orders.repository.OrderRepository;
@@ -31,13 +30,10 @@ import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -202,16 +198,14 @@ public class ReportService {
     }
 
     private List<MarketplacePerformanceResponse> marketplacePerformance(List<Order> orderList, List<Settlement> settlementList, List<ReturnRecord> returnList) {
-        Map<OrderPlatform, MarketplaceAccumulator> rows = new EnumMap<>(OrderPlatform.class);
-        for (OrderPlatform platform : OrderPlatform.values()) {
-            rows.put(platform, new MarketplaceAccumulator());
-        }
+        Map<String, MarketplaceAccumulator> rows = new LinkedHashMap<>();
 
         for (Order order : orderList) {
             if (!isRecognizedSale(order)) {
                 continue;
             }
-            MarketplaceAccumulator row = rows.get(order.getPlatform());
+            String marketplace = order.getMarketplace().getCode();
+            MarketplaceAccumulator row = rows.computeIfAbsent(marketplace, ignored -> new MarketplaceAccumulator());
             row.orders++;
             row.sales = row.sales.add(safe(order.getTotalOrderValue()));
             for (var item : order.getItems()) {
@@ -220,7 +214,8 @@ public class ReportService {
         }
 
         for (Settlement settlement : settlementList) {
-            MarketplaceAccumulator row = rows.get(settlement.getPlatform());
+            String marketplace = settlement.getMarketplace().getCode();
+            MarketplaceAccumulator row = rows.computeIfAbsent(marketplace, ignored -> new MarketplaceAccumulator());
             row.marketplaceFees = row.marketplaceFees.add(safe(settlement.getMarketplaceFees()));
             row.shippingCharges = row.shippingCharges.add(safe(settlement.getShippingCharges()));
             row.returnCharges = row.returnCharges.add(safe(settlement.getReturnCharges()));
@@ -229,20 +224,22 @@ public class ReportService {
         }
 
         for (ReturnRecord record : returnList) {
-            MarketplaceAccumulator row = rows.get(record.getOrder().getPlatform());
+            String marketplace = record.getOrder().getMarketplace().getCode();
+            MarketplaceAccumulator row = rows.computeIfAbsent(marketplace, ignored -> new MarketplaceAccumulator());
             row.returnLoss = row.returnLoss.add(safe(record.getTotalLoss()));
         }
 
         List<MarketplacePerformanceResponse> performance = new ArrayList<>();
-        for (OrderPlatform platform : OrderPlatform.values()) {
-            MarketplaceAccumulator row = rows.get(platform);
+        for (Map.Entry<String, MarketplaceAccumulator> entry : rows.entrySet()) {
+            String marketplace = entry.getKey();
+            MarketplaceAccumulator row = entry.getValue();
             BigDecimal netRevenue = row.sales
                     .subtract(row.marketplaceFees)
                     .subtract(row.shippingCharges)
                     .subtract(row.returnCharges)
                     .subtract(row.otherCharges);
             BigDecimal profit = netRevenue.subtract(row.productCost).subtract(row.returnLoss);
-            performance.add(new MarketplacePerformanceResponse(platform.name(), row.orders, row.sales,
+            performance.add(new MarketplacePerformanceResponse(marketplace, row.orders, row.sales,
                     row.marketplaceFees, row.shippingCharges, row.returnCharges, row.settlements, netRevenue, profit));
         }
         return performance;

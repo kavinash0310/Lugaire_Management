@@ -5,6 +5,7 @@ import { use, useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { SettlementForm } from "@/components/settlement-form";
 import { api } from "@/lib/api";
+import { fetchMarketplaces, type Marketplace } from "@/lib/marketplaces";
 
 type OrderOption = {
   id: number;
@@ -45,17 +46,27 @@ type SettlementDetail = {
 export default function EditSettlementPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [orders, setOrders] = useState<OrderOption[]>([]);
+  const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
   const [initial, setInitial] = useState<SettlementDetail | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     api.get<OrderPage>("/orders?size=200").then((response) => setOrders(response.data.content)).catch(() => setOrders([]));
+    fetchMarketplaces().then(setMarketplaces).catch(() => setMarketplaces([]));
     api.get<SettlementDetail>(`/settlements/${id}`).then((response) => setInitial(response.data)).catch(() => setError("Unable to load settlement."));
   }, [id]);
 
   if (error) {
-    return <AppShell><section className="mx-auto max-w-7xl p-5 md:p-8"><p className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</p></section></AppShell>;
+    return (
+      <AppShell>
+        <section className="mx-auto max-w-7xl p-5 md:p-8">
+          <p className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</p>
+        </section>
+      </AppShell>
+    );
   }
+
+  const marketplaceId = marketplaces.find((marketplace) => marketplace.code === initial?.platform)?.id;
 
   return (
     <AppShell>
@@ -68,11 +79,13 @@ export default function EditSettlementPage({ params }: { params: Promise<{ id: s
           <Link href={`/settlements/${id}`} className="text-sm underline">Back to settlement</Link>
         </div>
 
-        {!initial ? <p className="mt-6 text-sm text-muted-foreground">Loading settlement...</p> : (
+        {!initial ? (
+          <p className="mt-6 text-sm text-muted-foreground">Loading settlement...</p>
+        ) : (
           <SettlementForm
             initialValues={{
               settlementId: initial.settlementId,
-              platform: initial.platform,
+              marketplaceId: String(marketplaceId ?? ""),
               settlementDate: initial.settlementDate,
               settlementPeriodStart: initial.settlementPeriodStart,
               settlementPeriodEnd: initial.settlementPeriodEnd,
@@ -95,6 +108,7 @@ export default function EditSettlementPage({ params }: { params: Promise<{ id: s
               })),
             }}
             orderOptions={orders}
+            marketplaces={marketplaces}
             submitLabel="Update settlement"
             onSubmit={async (payload) => {
               await api.put(`/settlements/${id}`, payload);

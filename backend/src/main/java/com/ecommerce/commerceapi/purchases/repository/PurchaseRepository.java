@@ -6,6 +6,7 @@ import com.ecommerce.commerceapi.purchases.domain.PurchaseStatus;
 import java.time.LocalDate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -31,4 +32,16 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
                           @Param("fromDate") LocalDate fromDate,
                           @Param("toDate") LocalDate toDate,
                           Pageable pageable);
+
+    @EntityGraph(attributePaths = {
+            "supplier",
+            "items",
+            "items.variant",
+            "items.variant.product",
+            "items.variant.product.brand",
+            "items.variant.product.category",
+            "items.variant.color",
+            "items.variant.size"
+    })
+    java.util.List<Purchase> findAllByOrderByPurchaseDateDescIdDesc();
 }

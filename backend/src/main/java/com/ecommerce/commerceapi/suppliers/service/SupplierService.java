@@ -6,7 +6,9 @@ import com.ecommerce.commerceapi.suppliers.api.SupplierRequest;
 import com.ecommerce.commerceapi.suppliers.api.SupplierResponse;
 import com.ecommerce.commerceapi.suppliers.domain.Supplier;
 import com.ecommerce.commerceapi.suppliers.repository.SupplierRepository;
+import com.ecommerce.commerceapi.audit.service.AuditLogService;
 import jakarta.persistence.EntityNotFoundException;
+import java.util.Map;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,9 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SupplierService {
     private final SupplierRepository suppliers;
+    private final AuditLogService auditLogs;
 
-    public SupplierService(SupplierRepository suppliers) {
+    public SupplierService(SupplierRepository suppliers, AuditLogService auditLogs) {
         this.suppliers = suppliers;
+        this.auditLogs = auditLogs;
     }
 
     @Transactional(readOnly = true)
@@ -42,21 +46,50 @@ public class SupplierService {
         }
         Supplier supplier = new Supplier();
         apply(supplier, request);
-        return response(suppliers.save(supplier));
+        Supplier saved = suppliers.save(supplier);
+        auditLogs.log(
+                "CREATE",
+                "SUPPLIER",
+                "Supplier",
+                String.valueOf(saved.getId()),
+                "Supplier created",
+                null,
+                Map.of("supplierId", saved.getSupplierId(), "name", saved.getName(), "active", String.valueOf(saved.isActive())));
+        return response(saved);
     }
 
     @Transactional
     public SupplierResponse update(Long id, SupplierRequest request) {
         Supplier supplier = suppliers.findById(id).orElseThrow(() -> new EntityNotFoundException("Supplier not found"));
+        Map<String, Object> oldValue = Map.of("supplierId", supplier.getSupplierId(), "name", supplier.getName(), "active", String.valueOf(supplier.isActive()));
         apply(supplier, request);
-        return response(suppliers.save(supplier));
+        Supplier saved = suppliers.save(supplier);
+        auditLogs.log(
+                "UPDATE",
+                "SUPPLIER",
+                "Supplier",
+                String.valueOf(saved.getId()),
+                "Supplier updated",
+                oldValue,
+                Map.of("supplierId", saved.getSupplierId(), "name", saved.getName(), "active", String.valueOf(saved.isActive())));
+        return response(saved);
     }
 
     @Transactional
     public SupplierResponse updateActive(Long id, boolean active) {
         Supplier supplier = suppliers.findById(id).orElseThrow(() -> new EntityNotFoundException("Supplier not found"));
+        boolean previous = supplier.isActive();
         supplier.setActive(active);
-        return response(suppliers.save(supplier));
+        Supplier saved = suppliers.save(supplier);
+        auditLogs.log(
+                active ? "ACTIVATE" : "DEACTIVATE",
+                "SUPPLIER",
+                "Supplier",
+                String.valueOf(saved.getId()),
+                "Supplier " + (active ? "activated" : "deactivated"),
+                Map.of("active", String.valueOf(previous)),
+                Map.of("active", String.valueOf(saved.isActive())));
+        return response(saved);
     }
 
     private void apply(Supplier supplier, SupplierRequest request) {

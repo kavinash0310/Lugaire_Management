@@ -12,7 +12,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
-import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 
 @Configuration
@@ -48,7 +47,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/health", "/api/v1/version").permitAll()
                         .requestMatchers("/api/v1/auth/login").permitAll()
                         .requestMatchers("/api/v1/auth/logout", "/api/v1/auth/me").authenticated()
-                        .requestMatchers("/api/v1/users/**", "/api/v1/roles/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/users/**", "/api/v1/roles/**", "/api/v1/audit-logs/**").hasRole("ADMIN")
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterAfter(currentUserSessionFilter, SecurityContextHolderFilter.class)

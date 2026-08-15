@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { type Marketplace } from "@/lib/marketplaces";
 
 type OrderOption = {
   id: number;
@@ -24,7 +25,7 @@ type SettlementItemForm = {
 
 type SettlementFormValues = {
   settlementId: string;
-  platform: string;
+  marketplaceId: string;
   settlementDate: string;
   settlementPeriodStart: string;
   settlementPeriodEnd: string;
@@ -40,7 +41,7 @@ type SettlementFormValues = {
 
 type SettlementRequestPayload = {
   settlementId: string;
-  platform: string;
+  marketplaceId: number;
   settlementDate: string;
   settlementPeriodStart: string;
   settlementPeriodEnd: string;
@@ -79,18 +80,20 @@ const today = new Date().toISOString().slice(0, 10);
 export function SettlementForm({
   initialValues,
   orderOptions,
+  marketplaces,
   onSubmit,
   submitLabel,
-  }: {
+}: {
   initialValues?: Partial<SettlementFormValues>;
   orderOptions: OrderOption[];
+  marketplaces: Marketplace[];
   onSubmit: (payload: SettlementRequestPayload) => Promise<void>;
   submitLabel: string;
 }) {
   const initialItems = initialValues?.items?.length ? initialValues.items : [blankItem()];
   const [form, setForm] = useState<SettlementFormValues>({
     settlementId: "",
-    platform: "MEESHO",
+    marketplaceId: marketplaces[0]?.id ? String(marketplaces[0].id) : "",
     settlementDate: today,
     settlementPeriodStart: today,
     settlementPeriodEnd: today,
@@ -108,10 +111,21 @@ export function SettlementForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    if (!form.marketplaceId && marketplaces.length > 0) {
+      setForm((current) => current.marketplaceId ? current : { ...current, marketplaceId: String(marketplaces[0].id) });
+    }
+  }, [form.marketplaceId, marketplaces]);
+
   const filteredOrders = useMemo(() => {
     const query = search.toLowerCase();
     return orderOptions.filter((order) => `${order.orderId} ${order.platform} ${order.orderDate} ${order.orderStatus} ${order.paymentStatus}`.toLowerCase().includes(query));
   }, [orderOptions, search]);
+
+  const selectedMarketplace = useMemo(
+    () => marketplaces.find((marketplace) => String(marketplace.id) === form.marketplaceId),
+    [form.marketplaceId, marketplaces],
+  );
 
   const totals = useMemo(() => {
     const gross = form.items.reduce((sum, item) => sum + Number(item.grossOrderAmount || 0), 0);
@@ -136,6 +150,10 @@ export function SettlementForm({
       setError("Settlement ID is required.");
       return;
     }
+    if (!form.marketplaceId) {
+      setError("Marketplace is required.");
+      return;
+    }
     if (!form.items.length || form.items.some((item) => !item.orderId)) {
       setError("Please select at least one existing order for the settlement.");
       return;
@@ -144,7 +162,7 @@ export function SettlementForm({
     try {
       await onSubmit({
         settlementId: form.settlementId.trim(),
-        platform: form.platform,
+        marketplaceId: Number(form.marketplaceId),
         settlementDate: form.settlementDate,
         settlementPeriodStart: form.settlementPeriodStart,
         settlementPeriodEnd: form.settlementPeriodEnd,
@@ -178,7 +196,15 @@ export function SettlementForm({
       {error && <p className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       <div className="grid gap-4 md:grid-cols-3">
         <Field label="Settlement ID" value={form.settlementId} onChange={(value) => setField("settlementId", value)} />
-        <Select label="Platform" value={form.platform} onChange={(value) => setField("platform", value)} options={["MEESHO", "AMAZON", "FLIPKART", "WEBSITE", "OTHER"].map((value) => ({ value, label: value }))} />
+        <Select
+          label="Marketplace"
+          value={form.marketplaceId}
+          onChange={(value) => setField("marketplaceId", value)}
+          options={marketplaces.map((marketplace) => ({
+            value: String(marketplace.id),
+            label: `${marketplace.code} · ${marketplace.name}`,
+          }))}
+        />
         <Field type="date" label="Settlement date" value={form.settlementDate} onChange={(value) => setField("settlementDate", value)} />
         <Field type="date" label="Period start" value={form.settlementPeriodStart} onChange={(value) => setField("settlementPeriodStart", value)} />
         <Field type="date" label="Period end" value={form.settlementPeriodEnd} onChange={(value) => setField("settlementPeriodEnd", value)} />
@@ -195,6 +221,7 @@ export function SettlementForm({
           <p><strong>Expected net:</strong> ₹{totals.net.toFixed(2)}</p>
           <p><strong>Received:</strong> ₹{totals.received.toFixed(2)}</p>
           <p><strong>Difference:</strong> ₹{totals.difference.toFixed(2)}</p>
+          <p><strong>Marketplace:</strong> {selectedMarketplace ? `${selectedMarketplace.code} · ${selectedMarketplace.name}` : "None"}</p>
         </div>
       </div>
 
@@ -282,7 +309,9 @@ function Select({ label, value, onChange, options }: { label: string; value: str
       {label}
       <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 block w-full rounded border bg-background px-3 py-2 font-normal">
         <option value="">Select</option>
-        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
       </select>
     </label>
   );

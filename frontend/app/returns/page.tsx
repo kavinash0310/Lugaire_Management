@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { api } from "@/lib/api";
+import { fetchMarketplaces, type Marketplace } from "@/lib/marketplaces";
 
 type ReturnRecord = {
   id: number;
@@ -29,8 +30,9 @@ type ReturnPage = {
 
 export default function ReturnsPage() {
   const [data, setData] = useState<ReturnPage>({ content: [], totalPages: 0 });
+  const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
   const [search, setSearch] = useState("");
-  const [platform, setPlatform] = useState("");
+  const [marketplaceId, setMarketplaceId] = useState("");
   const [type, setType] = useState("");
   const [status, setStatus] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -40,8 +42,12 @@ export default function ReturnsPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    fetchMarketplaces().then(setMarketplaces).catch(() => setMarketplaces([]));
+  }, []);
+
+  useEffect(() => {
     const query = new URLSearchParams({ search, page: String(page), size: "20" });
-    if (platform) query.set("platform", platform);
+    if (marketplaceId) query.set("marketplaceId", marketplaceId);
     if (type) query.set("type", type);
     if (status) query.set("status", status);
     if (fromDate) query.set("fromDate", fromDate);
@@ -55,7 +61,7 @@ export default function ReturnsPage() {
       })
       .catch(() => setError("Unable to load returns."))
       .finally(() => setLoading(false));
-  }, [search, platform, type, status, fromDate, toDate, page]);
+  }, [search, marketplaceId, type, status, fromDate, toDate, page]);
 
   function resetPage(setter: (value: string) => void, value: string) {
     setter(value);
@@ -75,7 +81,14 @@ export default function ReturnsPage() {
 
         <div className="mt-6 grid gap-3 md:grid-cols-3 lg:grid-cols-6">
           <input value={search} onChange={(event) => resetPage(setSearch, event.target.value)} placeholder="Search order or SKU" className="rounded border p-2 lg:col-span-2" />
-          <select value={platform} onChange={(event) => resetPage(setPlatform, event.target.value)} className="rounded border bg-background p-2"><option value="">All platforms</option>{["MEESHO", "AMAZON", "FLIPKART", "WEBSITE", "OTHER"].map((value) => <option key={value}>{value}</option>)}</select>
+          <select value={marketplaceId} onChange={(event) => resetPage(setMarketplaceId, event.target.value)} className="rounded border bg-background p-2">
+            <option value="">All marketplaces</option>
+            {marketplaces.map((marketplace) => (
+              <option key={marketplace.id} value={marketplace.id}>
+                {marketplace.code} · {marketplace.name}
+              </option>
+            ))}
+          </select>
           <select value={type} onChange={(event) => resetPage(setType, event.target.value)} className="rounded border bg-background p-2"><option value="">All types</option><option>RETURNED</option><option>RTO</option></select>
           <select value={status} onChange={(event) => resetPage(setStatus, event.target.value)} className="rounded border bg-background p-2"><option value="">All statuses</option>{["INITIATED", "RECEIVED", "INSPECTED", "COMPLETED"].map((value) => <option key={value}>{value}</option>)}</select>
           <input type="date" value={fromDate} onChange={(event) => resetPage(setFromDate, event.target.value)} className="rounded border p-2" />
@@ -92,6 +105,7 @@ export default function ReturnsPage() {
                   <tr>
                     <th className="p-3">Date</th>
                     <th>Order</th>
+                    <th>Marketplace</th>
                     <th>Product</th>
                     <th>SKU</th>
                     <th>Type</th>
@@ -108,12 +122,13 @@ export default function ReturnsPage() {
                     <tr key={record.id} className="border-t">
                       <td className="p-3">{record.returnDate}</td>
                       <td>{record.orderId}</td>
+                      <td>{record.orderPlatform}</td>
                       <td>{record.productName} / {record.color} / {record.size}</td>
                       <td>{record.sku}</td>
                       <td>{record.type}</td>
                       <td>{record.reason}</td>
                       <td>{record.quantity}</td>
-                      <td>Rs. {record.totalLoss}</td>
+                      <td>₹{record.totalLoss}</td>
                       <td>{record.resellable ? "Yes" : "No"}</td>
                       <td>{record.status}</td>
                       <td><Link className="underline" href={`/returns/${record.id}`}>View</Link></td>

@@ -1,11 +1,11 @@
 # LUGAIRE ECOM MANAGEMENT
 
-Phase 1 establishes a clean foundation for a future e-commerce business-management application. It intentionally contains no business modules, CRUD functionality, authentication, or business database tables.
+The repository contains a modular e-commerce business-management system built in phases. The current implementation includes the foundation, master data, product/catalog groundwork, inventory, orders, returns, suppliers, settlements, expenses, profit/reporting, and authentication/users.
 
 ## Architecture
 
 - `frontend/`: Next.js + React + TypeScript application providing the responsive application shell.
-- `backend/`: Spring Boot modular-monolith API. Phase 1 exposes only operational endpoints.
+- `backend/`: Spring Boot modular-monolith API with REST endpoints under `/api/v1`.
 - PostgreSQL is the source of truth. Flyway owns schema migrations, while Hibernate only validates the resulting schema.
 - The frontend communicates with the backend via REST, using Axios through a single API client.
 
@@ -96,4 +96,15 @@ Invoke-RestMethod http://localhost:8080/api/v1/health
 - [x] Consistent API error response handling
 - [x] Git-friendly ignore and line-ending configuration
 
-Phase 2 and later features are intentionally out of scope.
+## Authentication
+
+The backend seeds a local bootstrap administrator account on first run when the user table is empty.
+
+- Email: `admin@lugaire.local`
+- Password: `Admin@12345`
+
+Open the login page at `http://localhost:3000/login`.
+
+## Current note
+
+This repository is under active phase-by-phase development, so some later-phase screens may still be evolving.

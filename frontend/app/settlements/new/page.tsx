@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { SettlementForm } from "@/components/settlement-form";
 import { api } from "@/lib/api";
+import { fetchMarketplaces, type Marketplace } from "@/lib/marketplaces";
 
 type OrderOption = {
   id: number;
@@ -19,9 +20,11 @@ type OrderPage = { content: OrderOption[] };
 
 export default function NewSettlementPage() {
   const [orders, setOrders] = useState<OrderOption[]>([]);
+  const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
 
   useEffect(() => {
     api.get<OrderPage>("/orders?size=200").then((response) => setOrders(response.data.content)).catch(() => setOrders([]));
+    fetchMarketplaces().then(setMarketplaces).catch(() => setMarketplaces([]));
   }, []);
 
   return (
@@ -37,6 +40,7 @@ export default function NewSettlementPage() {
 
         <SettlementForm
           orderOptions={orders}
+          marketplaces={marketplaces}
           submitLabel="Create settlement"
           onSubmit={async (payload) => {
             await api.post("/settlements", payload);

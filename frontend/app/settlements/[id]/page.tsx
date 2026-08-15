@@ -98,7 +98,7 @@ export default function SettlementDetailPage({ params }: { params: Promise<{ id:
         {!settlement ? <p className="mt-6 text-sm text-muted-foreground">Loading settlement...</p> : (
           <div className="mt-6 space-y-6">
             <div className="grid gap-4 md:grid-cols-3">
-              <Card label="Platform" value={settlement.platform} />
+              <Card label="Marketplace" value={settlement.platform} />
               <Card label="Date" value={settlement.settlementDate} />
               <Card label="Period" value={`${settlement.settlementPeriodStart} → ${settlement.settlementPeriodEnd}`} />
               <Card label="Status" value={settlement.status} />

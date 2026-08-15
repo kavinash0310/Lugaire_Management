@@ -3,9 +3,9 @@ package com.ecommerce.commerceapi.returns.service;
 import com.ecommerce.commerceapi.inventory.api.InventoryTransactionRequest;
 import com.ecommerce.commerceapi.inventory.domain.InventoryTransactionType;
 import com.ecommerce.commerceapi.inventory.service.InventoryService;
+import com.ecommerce.commerceapi.audit.service.AuditLogService;
 import com.ecommerce.commerceapi.orders.domain.OrderItem;
 import com.ecommerce.commerceapi.orders.repository.OrderItemRepository;
-import com.ecommerce.commerceapi.orders.domain.OrderPlatform;
 import com.ecommerce.commerceapi.orders.domain.OrderStatus;
 import com.ecommerce.commerceapi.returns.api.ReturnCreateRequest;
 import com.ecommerce.commerceapi.returns.api.ReturnResponse;
@@ -17,6 +17,8 @@ import com.ecommerce.commerceapi.returns.repository.ReturnRecordRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -27,11 +29,13 @@ public class ReturnService {
     private final ReturnRecordRepository records;
     private final OrderItemRepository orderItems;
     private final InventoryService inventory;
+    private final AuditLogService auditLogs;
 
-    public ReturnService(ReturnRecordRepository records, OrderItemRepository orderItems, InventoryService inventory) {
+    public ReturnService(ReturnRecordRepository records, OrderItemRepository orderItems, InventoryService inventory, AuditLogService auditLogs) {
         this.records = records;
         this.orderItems = orderItems;
         this.inventory = inventory;
+        this.auditLogs = auditLogs;
     }
 
     @Transactional
@@ -62,7 +66,16 @@ public class ReturnService {
         record.setResellable(request.resellable());
         record.setReturnDate(request.returnDate());
         record.setRemarks(request.remarks());
-        return response(records.save(record));
+        ReturnRecord saved = records.save(record);
+        auditLogs.log(
+                "CREATE",
+                "RETURN",
+                "ReturnRecord",
+                String.valueOf(saved.getId()),
+                "Return record created",
+                null,
+                returnState(saved));
+        return response(saved);
     }
 
     @Transactional
@@ -74,13 +87,22 @@ public class ReturnService {
         if (request.status() == ReturnStatus.RECEIVED && record.isResellable() && !record.isInventoryRestored()) {
             inventory.record(new InventoryTransactionRequest(record.getVariant().getId(), InventoryTransactionType.RETURN,
                     record.getQuantity(), record.getVariant().getCostPrice(), "RETURN_RECORD", record.getId().toString(),
-                    "Resellable " + record.getType() + " for order " + record.getOrder().getOrderId(), LocalDate.now()));
+                    "Resellable " + record.getType() + " for order " + record.getOrder().getOrderId(), null, LocalDate.now()));
             record.setInventoryRestored(true);
         }
         if (request.status() == ReturnStatus.RECEIVED) {
             record.setReceivedDate(request.receivedDate() == null ? LocalDate.now() : request.receivedDate());
         }
+        ReturnStatus previous = record.getStatus();
         record.setStatus(request.status());
+        auditLogs.log(
+                "STATUS_CHANGE",
+                "RETURN",
+                "ReturnRecord",
+                String.valueOf(record.getId()),
+                "Return status changed",
+                Map.of("status", previous.name(), "inventoryRestored", String.valueOf(record.isInventoryRestored())),
+                Map.of("status", record.getStatus().name(), "inventoryRestored", String.valueOf(record.isInventoryRestored())));
         return response(record);
     }
 
@@ -90,9 +112,9 @@ public class ReturnService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ReturnResponse> list(String search, OrderPlatform platform, ReturnType type, ReturnStatus status,
+    public Page<ReturnResponse> list(String search, Long marketplaceId, ReturnType type, ReturnStatus status,
                                      LocalDate fromDate, LocalDate toDate, int page, int size) {
-        return records.search(search == null ? "" : search, platform, type, status, fromDate, toDate,
+        return records.search(search == null ? "" : search, marketplaceId, type, status, fromDate, toDate,
                         PageRequest.of(page, Math.min(size, 100)))
                 .map(this::response);
     }
@@ -107,7 +129,7 @@ public class ReturnService {
         return new ReturnResponse(
                 record.getId(),
                 record.getOrder().getOrderId(),
-                record.getOrder().getPlatform().name(),
+                record.getOrder().getMarketplace().getCode(),
                 record.getOrder().getOrderDate(),
                 record.getOrder().getOrderStatus().name(),
                 record.getOrderItem().getId(),
@@ -128,5 +150,19 @@ public class ReturnService {
                 record.getReceivedDate(),
                 record.getRemarks(),
                 record.isInventoryRestored());
+    }
+
+    private Map<String, Object> returnState(ReturnRecord record) {
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("orderId", record.getOrder() == null ? null : record.getOrder().getOrderId());
+        state.put("orderItemId", record.getOrderItem() == null ? null : record.getOrderItem().getId());
+        state.put("variantSku", record.getVariant() == null ? null : record.getVariant().getSku());
+        state.put("type", record.getType() == null ? null : record.getType().name());
+        state.put("reason", record.getReason());
+        state.put("quantity", record.getQuantity());
+        state.put("status", record.getStatus() == null ? null : record.getStatus().name());
+        state.put("resellable", record.isResellable());
+        state.put("inventoryRestored", record.isInventoryRestored());
+        return state;
     }
 }

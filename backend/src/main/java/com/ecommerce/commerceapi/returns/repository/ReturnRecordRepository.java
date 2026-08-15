@@ -1,6 +1,5 @@
 package com.ecommerce.commerceapi.returns.repository;
 
-import com.ecommerce.commerceapi.orders.domain.OrderPlatform;
 import com.ecommerce.commerceapi.returns.domain.ReturnRecord;
 import com.ecommerce.commerceapi.returns.domain.ReturnStatus;
 import com.ecommerce.commerceapi.returns.domain.ReturnType;
@@ -19,14 +18,14 @@ public interface ReturnRecordRepository extends JpaRepository<ReturnRecord, Long
     @Query("""
             select record from ReturnRecord record
             where (:search = '' or lower(record.order.orderId) like lower(concat('%', :search, '%')) or lower(record.variant.sku) like lower(concat('%', :search, '%')))
-              and (:platform is null or record.order.platform = :platform)
+              and (:marketplaceId is null or record.order.marketplace.id = :marketplaceId)
               and (:type is null or record.type = :type)
               and (:status is null or record.status = :status)
               and (:fromDate is null or record.returnDate >= :fromDate)
               and (:toDate is null or record.returnDate <= :toDate)
             """)
     Page<ReturnRecord> search(@Param("search") String search,
-                              @Param("platform") OrderPlatform platform,
+                              @Param("marketplaceId") Long marketplaceId,
                               @Param("type") ReturnType type,
                               @Param("status") ReturnStatus status,
                               @Param("fromDate") LocalDate fromDate,

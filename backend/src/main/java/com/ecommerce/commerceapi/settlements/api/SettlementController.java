@@ -1,6 +1,5 @@
 package com.ecommerce.commerceapi.settlements.api;
 
-import com.ecommerce.commerceapi.orders.domain.OrderPlatform;
 import com.ecommerce.commerceapi.settlements.domain.ReconciliationStatus;
 import com.ecommerce.commerceapi.settlements.domain.SettlementStatus;
 import com.ecommerce.commerceapi.settlements.service.SettlementService;
@@ -30,14 +29,14 @@ public class SettlementController {
     @GetMapping
     public SettlementPageResponse list(
             @RequestParam(defaultValue = "") String search,
-            @RequestParam(required = false) OrderPlatform platform,
+            @RequestParam(required = false) Long marketplaceId,
             @RequestParam(required = false) SettlementStatus status,
             @RequestParam(required = false) ReconciliationStatus reconciliationStatus,
             @RequestParam(required = false) LocalDate fromDate,
             @RequestParam(required = false) LocalDate toDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return service.list(search, platform, status, reconciliationStatus, fromDate, toDate, page, size);
+        return service.list(search, marketplaceId, status, reconciliationStatus, fromDate, toDate, page, size);
     }
 
     @GetMapping("/{id}")

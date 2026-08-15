@@ -8,6 +8,7 @@ import com.ecommerce.commerceapi.expenses.domain.Expense;
 import com.ecommerce.commerceapi.expenses.domain.ExpensePaymentMethod;
 import com.ecommerce.commerceapi.expenses.domain.ExpensePaymentStatus;
 import com.ecommerce.commerceapi.expenses.repository.ExpenseRepository;
+import com.ecommerce.commerceapi.audit.service.AuditLogService;
 import com.ecommerce.commerceapi.masters.domain.ExpenseCategory;
 import com.ecommerce.commerceapi.masters.repository.ExpenseCategoryRepository;
 import com.ecommerce.commerceapi.suppliers.domain.Supplier;
@@ -16,6 +17,8 @@ import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.Year;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -27,11 +30,13 @@ public class ExpenseService {
     private final ExpenseRepository expenses;
     private final ExpenseCategoryRepository categories;
     private final SupplierRepository suppliers;
+    private final AuditLogService auditLogs;
 
-    public ExpenseService(ExpenseRepository expenses, ExpenseCategoryRepository categories, SupplierRepository suppliers) {
+    public ExpenseService(ExpenseRepository expenses, ExpenseCategoryRepository categories, SupplierRepository suppliers, AuditLogService auditLogs) {
         this.expenses = expenses;
         this.categories = categories;
         this.suppliers = suppliers;
+        this.auditLogs = auditLogs;
     }
 
     @Transactional(readOnly = true)
@@ -54,24 +59,51 @@ public class ExpenseService {
         apply(expense, request, true);
         expense.setExpenseNumber(generateExpenseNumber(request.expenseDate()));
         ensureExpenseNumberAvailable(expense.getExpenseNumber(), null);
-        return response(expenses.save(expense));
+        Expense saved = expenses.save(expense);
+        auditLogs.log(
+                "CREATE",
+                "EXPENSE",
+                "Expense",
+                String.valueOf(saved.getId()),
+                "Expense created",
+                null,
+                expenseState(saved));
+        return response(saved);
     }
 
     @Transactional
     public ExpenseResponse update(Long id, ExpenseRequest request) {
         Expense expense = expenses.findById(id).orElseThrow(() -> new EntityNotFoundException("Expense not found"));
         ExpenseRequest normalized = request;
+        Map<String, Object> oldValue = expenseState(expense);
         if (expense.getPaymentStatus() == ExpensePaymentStatus.PAID && hasFinancialChanges(expense, request)) {
             throw new IllegalArgumentException("Paid expenses cannot change financial details");
         }
         apply(expense, normalized, false);
+        auditLogs.log(
+                "UPDATE",
+                "EXPENSE",
+                "Expense",
+                String.valueOf(expense.getId()),
+                "Expense updated",
+                oldValue,
+                expenseState(expense));
         return response(expense);
     }
 
     @Transactional
     public ExpenseResponse updatePaymentStatus(Long id, ExpensePaymentStatusRequest request) {
         Expense expense = expenses.findById(id).orElseThrow(() -> new EntityNotFoundException("Expense not found"));
+        ExpensePaymentStatus previous = expense.getPaymentStatus();
         expense.setPaymentStatus(request.paymentStatus());
+        auditLogs.log(
+                "STATUS_CHANGE",
+                "EXPENSE",
+                "Expense",
+                String.valueOf(expense.getId()),
+                "Expense payment status changed",
+                Map.of("paymentStatus", previous.name()),
+                Map.of("paymentStatus", request.paymentStatus().name()));
         return response(expense);
     }
 
@@ -152,5 +184,21 @@ public class ExpenseService {
                 expense.getRemarks(),
                 expense.getCreatedAt(),
                 expense.getUpdatedAt());
+    }
+
+    private Map<String, Object> expenseState(Expense expense) {
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("expenseNumber", expense.getExpenseNumber());
+        state.put("expenseDate", expense.getExpenseDate());
+        state.put("category", expense.getCategory() == null ? null : expense.getCategory().getCode());
+        state.put("supplier", expense.getSupplier() == null ? null : expense.getSupplier().getSupplierId());
+        state.put("description", expense.getDescription());
+        state.put("amount", expense.getAmount());
+        state.put("taxAmount", expense.getTaxAmount());
+        state.put("totalAmount", expense.getTotalAmount());
+        state.put("paymentMethod", expense.getPaymentMethod() == null ? null : expense.getPaymentMethod().name());
+        state.put("paymentStatus", expense.getPaymentStatus() == null ? null : expense.getPaymentStatus().name());
+        state.put("referenceNumber", expense.getReferenceNumber());
+        return state;
     }
 }

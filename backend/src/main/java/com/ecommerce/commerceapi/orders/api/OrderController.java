@@ -1,7 +1,6 @@
 package com.ecommerce.commerceapi.orders.api;
 
 import com.ecommerce.commerceapi.orders.service.OrderService;
-import com.ecommerce.commerceapi.orders.domain.OrderPlatform;
 import com.ecommerce.commerceapi.orders.domain.OrderStatus;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -30,11 +29,11 @@ public class OrderController {
     @GetMapping
     public OrderPageResponse list(
             @RequestParam(defaultValue = "") String search,
-            @RequestParam(required = false) OrderPlatform platform,
+            @RequestParam(required = false) Long marketplaceId,
             @RequestParam(required = false) OrderStatus status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return service.list(search, platform, status, page, Math.min(size, 100));
+        return service.list(search, marketplaceId, status, page, Math.min(size, 100));
     }
 
     @PostMapping
