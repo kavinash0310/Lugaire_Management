@@ -153,8 +153,11 @@ public class InventoryService {
     public InventoryDetailResponse detail(Long variantId) {
         ProductVariant variant = variants.findInventoryViewById(variantId)
                 .orElseThrow(() -> new EntityNotFoundException("Variant not found"));
-        InventorySummaryResponse summary = toSummary(variant, balance(variantId));
-        List<InventoryMovementResponse> movements = transactions.findByVariantIdOrderByTransactionDateDescCreatedAtDesc(variantId)
+        InventorySummaryResponse summary = toSummary(
+                variant,
+                balance(variantId),
+                settings.defaultLowStockThreshold()
+        );        List<InventoryMovementResponse> movements = transactions.findByVariantIdOrderByTransactionDateDescCreatedAtDesc(variantId)
                 .stream()
                 .map(this::toMovement)
                 .toList();

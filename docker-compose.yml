@@ -4,8 +4,8 @@ services:
     container_name: ecommerce-postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ecommerce_management}
-      POSTGRES_USER: ${POSTGRES_USER:-ecommerce}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecommerce_dev_password}
+      POSTGRES_USER: ${POSTGRES_USER:-lugaire}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lugaire}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:

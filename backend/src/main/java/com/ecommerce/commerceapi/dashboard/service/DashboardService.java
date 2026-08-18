@@ -6,6 +6,7 @@ import com.ecommerce.commerceapi.dashboard.api.DashboardStatusResponse;
 import com.ecommerce.commerceapi.dashboard.api.DashboardSummaryResponse;
 import com.ecommerce.commerceapi.dashboard.api.DashboardTrendPointResponse;
 import com.ecommerce.commerceapi.expenses.domain.Expense;
+import com.ecommerce.commerceapi.expenses.domain.ExpensePaymentStatus;
 import com.ecommerce.commerceapi.expenses.repository.ExpenseRepository;
 import com.ecommerce.commerceapi.inventory.api.InventoryPageResponse;
 import com.ecommerce.commerceapi.inventory.api.InventorySort;
@@ -33,6 +34,8 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -308,7 +311,7 @@ public class DashboardService {
         BigDecimal pending = BigDecimal.ZERO;
         for (Expense expense : expenseList) {
             total = total.add(safe(expense.getTotalAmount()));
-            if (expense.getPaymentStatus() == PaymentStatus.PAID) {
+            if (expense.getPaymentStatus() == ExpensePaymentStatus.PAID) {
                 paid = paid.add(safe(expense.getTotalAmount()));
             } else {
                 pending = pending.add(safe(expense.getTotalAmount()));
@@ -330,6 +333,26 @@ public class DashboardService {
                 ? BigDecimal.ZERO
                 : netProfit.divide(revenue.grossSales(), 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP);
         return new ProfitMetricsResponse(grossProfit, netProfit, profitMargin);
+    }
+
+    private List<ExpenseBreakdownResponse> expenseBreakdown(List<Expense> expenseList) {
+        Map<Long, ExpenseAccumulator> rows = new HashMap<>();
+        BigDecimal total = expenseList.stream().map(Expense::getTotalAmount).map(this::safe).reduce(BigDecimal.ZERO, BigDecimal::add);
+        for (Expense expense : expenseList) {
+            Long categoryId = expense.getCategory().getId();
+            ExpenseAccumulator row = rows.computeIfAbsent(categoryId, ignored -> new ExpenseAccumulator(expense.getCategory().getName()));
+            row.amount = row.amount.add(safe(expense.getTotalAmount()));
+        }
+        return rows.entrySet().stream()
+                .map(entry -> {
+                    ExpenseAccumulator row = entry.getValue();
+                    BigDecimal percentage = total.compareTo(BigDecimal.ZERO) == 0
+                            ? BigDecimal.ZERO
+                            : row.amount.divide(total, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP);
+                    return new ExpenseBreakdownResponse(entry.getKey(), row.categoryName, row.amount, percentage);
+                })
+                .sorted(Comparator.comparing(ExpenseBreakdownResponse::amount).reversed())
+                .toList();
     }
 
     private boolean isRecognizedSale(Order order) {
@@ -386,6 +409,15 @@ public class DashboardService {
         private BigDecimal otherCharges = BigDecimal.ZERO;
         private BigDecimal settlements = BigDecimal.ZERO;
         private BigDecimal returnLoss = BigDecimal.ZERO;
+    }
+
+    private static final class ExpenseAccumulator {
+        private final String categoryName;
+        private BigDecimal amount = BigDecimal.ZERO;
+
+        private ExpenseAccumulator(String categoryName) {
+            this.categoryName = categoryName;
+        }
     }
 
     private record ReportRange(ReportPeriod period, LocalDate fromDate, LocalDate toDate) {

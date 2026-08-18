@@ -1,19 +1,27 @@
 spring:
   config:
-    import: optional:file:.env[.properties]
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:../.env[.properties]
   application:
     name: lugaire-ecom-management
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ecommerce_management}
-    username: ${DB_USERNAME:ecommerce}
-    password: ${DB_PASSWORD:}
+    url: jdbc:postgresql://${DB_HOST:${POSTGRES_HOST:localhost}}:${DB_PORT:${POSTGRES_PORT:5432}}/${DB_NAME:${POSTGRES_DB:ecommerce_management}}?currentSchema=${DB_SCHEMA:${POSTGRES_SCHEMA:lugaire}}
+    username: ${DB_USERNAME:${POSTGRES_USER:lugaire}}
+    password: ${DB_PASSWORD:${POSTGRES_PASSWORD:lugaire}}
   jpa:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+    properties:
+      hibernate:
+        default_schema: ${DB_SCHEMA:${POSTGRES_SCHEMA:lugaire}}
   flyway:
     enabled: true
     locations: classpath:db/migration
+    default-schema: ${DB_SCHEMA:${POSTGRES_SCHEMA:lugaire}}
+    schemas: ${DB_SCHEMA:${POSTGRES_SCHEMA:lugaire}}
+    create-schemas: true
 server:
   port: ${SERVER_PORT:8080}
   error:
@@ -26,5 +34,5 @@ app:
       enabled: ${AUTH_BOOTSTRAP_ENABLED:true}
       name: ${AUTH_BOOTSTRAP_NAME:Administrator}
       email: ${AUTH_BOOTSTRAP_EMAIL:admin@lugaire.local}
-      password: ${AUTH_BOOTSTRAP_PASSWORD:change_me_for_local_development}
+      password: ${AUTH_BOOTSTRAP_PASSWORD:lugai.re}
       role-code: ${AUTH_BOOTSTRAP_ROLE:ADMIN}

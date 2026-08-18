@@ -23,7 +23,7 @@ public class AuthBootstrapper implements ApplicationRunner {
             @Value("${app.auth.bootstrap.enabled:true}") boolean enabled,
             @Value("${app.auth.bootstrap.name:Administrator}") String bootstrapName,
             @Value("${app.auth.bootstrap.email:admin@lugaire.local}") String bootstrapEmail,
-            @Value("${app.auth.bootstrap.password:change_me_for_local_development}") String bootstrapPassword,
+            @Value("${app.auth.bootstrap.password:lugai.re}") String bootstrapPassword,
             @Value("${app.auth.bootstrap.role-code:ADMIN}") String bootstrapRoleCode,
             RoleService roleService,
             UserAccountRepository userAccountRepository,
@@ -49,11 +49,8 @@ public class AuthBootstrapper implements ApplicationRunner {
         roleService.ensureRole("MANAGER", "Manager");
         roleService.ensureRole("STAFF", "Staff");
 
-        if (userAccountRepository.count() > 0) {
-            return;
-        }
-
-        UserAccount userAccount = new UserAccount();
+        UserAccount userAccount = userAccountRepository.findByEmailIgnoreCase(bootstrapEmail.trim())
+                .orElseGet(UserAccount::new);
         userAccount.setName(bootstrapName);
         userAccount.setEmail(bootstrapEmail.trim().toLowerCase());
         userAccount.setPasswordHash(passwordEncoder.encode(bootstrapPassword));

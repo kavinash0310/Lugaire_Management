@@ -9,8 +9,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.ecommerce.commerceapi.inventory.api.InventoryTransactionRequest;
+import com.ecommerce.commerceapi.audit.service.AuditLogService;
 import com.ecommerce.commerceapi.inventory.domain.InventoryTransactionType;
 import com.ecommerce.commerceapi.inventory.service.InventoryService;
+import com.ecommerce.commerceapi.marketplaces.domain.Marketplace;
+import com.ecommerce.commerceapi.marketplaces.repository.MarketplaceRepository;
 import com.ecommerce.commerceapi.orders.api.OrderRequest;
 import com.ecommerce.commerceapi.orders.api.OrderUpdateRequest;
 import com.ecommerce.commerceapi.orders.domain.Order;
@@ -35,17 +38,20 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 class OrderServiceTest {
     private final OrderRepository orders = mock(OrderRepository.class);
+    private final MarketplaceRepository marketplaces = mock(MarketplaceRepository.class);
     private final ProductVariantRepository variants = mock(ProductVariantRepository.class);
     private final InventoryService inventory = mock(InventoryService.class);
     private final ReturnRecordRepository returns = mock(ReturnRecordRepository.class);
+    private final AuditLogService auditLogs = mock(AuditLogService.class);
     private final AtomicInteger stock = new AtomicInteger(50);
     private final ProductVariant variant = variant(1L);
     private final Order order = orderWithQuantity(2);
-    private final OrderService service = new OrderService(orders, variants, inventory, returns);
+    private final OrderService service = new OrderService(orders, marketplaces, variants, inventory, returns, auditLogs);
 
     @BeforeEach
     void setUp() {
         stock.set(50);
+        when(marketplaces.findById(1L)).thenReturn(Optional.of(marketplace(1L, "MEESHO")));
         when(orders.findById(10L)).thenReturn(Optional.of(order));
         when(variants.findById(1L)).thenReturn(Optional.of(variant));
         when(returns.returnedQuantity(1L)).thenReturn(0);
@@ -84,11 +90,11 @@ class OrderServiceTest {
 
     @Test
     void rejectsDuplicatePlatformOrderIds() {
-        when(orders.findByPlatformAndOrderId(OrderPlatform.MEESHO, "MSH-20260805-0001"))
+        when(orders.findByMarketplaceIdAndOrderId(1L, "MSH-20260805-0001"))
                 .thenReturn(Optional.of(order));
 
         assertThrows(IllegalArgumentException.class, () -> service.create(new OrderRequest(
-                " MSH-20260805-0001 ", OrderPlatform.MEESHO, LocalDate.now(), null, null, null, null, null, null,
+                " MSH-20260805-0001 ", 1L, LocalDate.now(), null, null, null, null, null, null,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, List.of())));
     }
 
@@ -131,12 +137,13 @@ class OrderServiceTest {
         Order order = new Order();
         ReflectionTestUtils.setField(order, "id", 10L);
         order.setOrderId("MSH-20260805-0001");
-        order.setPlatform(OrderPlatform.MEESHO);
+        order.setMarketplace(marketplace(1L, "MEESHO"));
         order.setOrderDate(LocalDate.now());
         order.setCommission(BigDecimal.ZERO);
         order.setShippingCharge(BigDecimal.ZERO);
         order.setOtherCharges(BigDecimal.ZERO);
         OrderItem item = new OrderItem();
+        ReflectionTestUtils.setField(item, "id", 1L);
         item.setOrder(order);
         item.setVariant(variant);
         item.setSkuSnapshot(variant.getSku());
@@ -146,5 +153,14 @@ class OrderServiceTest {
         item.setLineTotal(BigDecimal.TEN.multiply(BigDecimal.valueOf(quantity)));
         order.getItems().add(item);
         return order;
+    }
+
+    private Marketplace marketplace(Long id, String code) {
+        Marketplace marketplace = new Marketplace();
+        ReflectionTestUtils.setField(marketplace, "id", id);
+        marketplace.setCode(code);
+        marketplace.setName(code);
+        marketplace.setActive(true);
+        return marketplace;
     }
 }

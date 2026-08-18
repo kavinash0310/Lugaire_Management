@@ -9,10 +9,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
+import com.ecommerce.commerceapi.audit.service.AuditLogService;
 import com.ecommerce.commerceapi.inventory.service.InventoryService;
+import com.ecommerce.commerceapi.marketplaces.domain.Marketplace;
+import com.ecommerce.commerceapi.masters.domain.Color;
+import com.ecommerce.commerceapi.masters.domain.Size;
 import com.ecommerce.commerceapi.orders.domain.Order;
 import com.ecommerce.commerceapi.orders.domain.OrderItem;
-import com.ecommerce.commerceapi.orders.domain.OrderPlatform;
 import com.ecommerce.commerceapi.orders.domain.OrderStatus;
 import com.ecommerce.commerceapi.orders.repository.OrderItemRepository;
 import com.ecommerce.commerceapi.products.domain.Product;
@@ -34,19 +37,26 @@ class ReturnServiceTest {
     private final ReturnRecordRepository records = mock(ReturnRecordRepository.class);
     private final OrderItemRepository orderItems = mock(OrderItemRepository.class);
     private final InventoryService inventory = mock(InventoryService.class);
-    private final ReturnService service = new ReturnService(records, orderItems, inventory);
+    private final AuditLogService auditLogs = mock(AuditLogService.class);
+    private final ReturnService service = new ReturnService(records, orderItems, inventory, auditLogs);
     private OrderItem orderItem;
 
     @BeforeEach
     void setUp() {
         Order order = new Order();
         order.setOrderId("MSH-20260805-0001");
-        order.setPlatform(OrderPlatform.MEESHO);
+        order.setMarketplace(marketplace(1L, "MEESHO"));
         order.setOrderStatus(OrderStatus.DELIVERED);
         Product product = new Product();
         product.setProductName("T-Shirt");
+        Color color = new Color();
+        color.setName("Black");
+        Size size = new Size();
+        size.setName("M");
         ProductVariant variant = new ProductVariant();
         variant.setProduct(product);
+        variant.setColor(color);
+        variant.setSize(size);
         variant.setSku("CK-MTS-0001-BLK-M");
         variant.setCostPrice(BigDecimal.valueOf(180));
         orderItem = new OrderItem();
@@ -114,5 +124,14 @@ class ReturnServiceTest {
         record.setOtherLoss(response.otherLoss());
         record.setTotalLoss(response.totalLoss());
         return record;
+    }
+
+    private Marketplace marketplace(Long id, String code) {
+        Marketplace marketplace = new Marketplace();
+        org.springframework.test.util.ReflectionTestUtils.setField(marketplace, "id", id);
+        marketplace.setCode(code);
+        marketplace.setName(code);
+        marketplace.setActive(true);
+        return marketplace;
     }
 }

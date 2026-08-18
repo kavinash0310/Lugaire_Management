@@ -12,6 +12,7 @@ import com.ecommerce.commerceapi.expenses.domain.Expense;
 import com.ecommerce.commerceapi.expenses.domain.ExpensePaymentMethod;
 import com.ecommerce.commerceapi.expenses.domain.ExpensePaymentStatus;
 import com.ecommerce.commerceapi.expenses.repository.ExpenseRepository;
+import com.ecommerce.commerceapi.audit.service.AuditLogService;
 import com.ecommerce.commerceapi.masters.domain.ExpenseCategory;
 import com.ecommerce.commerceapi.masters.repository.ExpenseCategoryRepository;
 import com.ecommerce.commerceapi.suppliers.domain.Supplier;
@@ -28,7 +29,8 @@ class ExpenseServiceTest {
     private final ExpenseRepository expenses = mock(ExpenseRepository.class);
     private final ExpenseCategoryRepository categories = mock(ExpenseCategoryRepository.class);
     private final SupplierRepository suppliers = mock(SupplierRepository.class);
-    private final ExpenseService service = new ExpenseService(expenses, categories, suppliers);
+    private final AuditLogService auditLogs = mock(AuditLogService.class);
+    private final ExpenseService service = new ExpenseService(expenses, categories, suppliers, auditLogs);
 
     @BeforeEach
     void setUp() {
