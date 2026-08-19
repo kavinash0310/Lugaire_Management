@@ -82,6 +82,52 @@ Important:
 - `sslmode=require` should stay enabled for Supabase
 - the password must be the **Supabase database password**, not the API secret key
 
+### Supabase CLI workflow
+
+You do **not** need to run every Supabase command every time.
+
+#### One-time setup for this repo / machine
+
+Run these once when you first connect the local project to the Supabase project:
+
+```powershell
+supabase login
+supabase link --project-ref tjwmqaiwwcadgzpgofcu
+```
+
+If you prefer not to type the commands manually, use the helper script:
+
+```powershell
+.\scripts\supabase-link.ps1 -ProjectRef tjwmqaiwwcadgzpgofcu
+```
+
+#### Every time you change the database schema
+
+Create a new migration file for the change:
+
+```powershell
+supabase migration new <migration_name>
+```
+
+Then edit the generated SQL migration file and apply it to Supabase:
+
+```powershell
+supabase db push
+```
+
+If you want a one-command reminder flow for new schema changes, you can use:
+
+```powershell
+.\scripts\supabase-push.ps1 -MigrationName add_my_change
+```
+
+#### Quick reminder
+
+- `supabase link` is usually **one-time**
+- `supabase migration new` is used **whenever you add a schema change**
+- `supabase db push` is used **whenever you want to send local migrations to Supabase**
+- if you switch to a different Supabase project, run `supabase link` again with the new project ref
+
 ## Run the backend
 
 From the `backend` folder:
