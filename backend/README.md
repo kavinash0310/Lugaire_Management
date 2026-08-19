@@ -62,6 +62,26 @@ Notes:
   - Password: `lugai.re`
 - The repository does not commit a real `.env` file; create one locally from `.env.example` if needed.
 
+## Connecting to Supabase
+
+Supabase API keys like `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY` are **not** the same thing as the PostgreSQL connection string Spring Boot needs.
+
+To sync local changes directly into Supabase, point this backend at the Supabase Postgres database by setting:
+
+```properties
+DB_URL=jdbc:postgresql://db.tjwmqaiwwcadgzpgofcu.supabase.co:5432/postgres?sslmode=require&currentSchema=lugaire
+DB_USERNAME=postgres
+DB_PASSWORD=your_supabase_database_password
+```
+
+If you prefer, you can keep using the individual `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, and `DB_PASSWORD` values instead of `DB_URL`.
+
+Important:
+
+- `DB_URL` takes priority over `DB_HOST` / `DB_PORT` / `DB_NAME`
+- `sslmode=require` should stay enabled for Supabase
+- the password must be the **Supabase database password**, not the API secret key
+
 ## Run the backend
 
 From the `backend` folder:
