@@ -49,7 +49,7 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000
 AUTH_BOOTSTRAP_ENABLED=true
 AUTH_BOOTSTRAP_NAME=Administrator
 AUTH_BOOTSTRAP_EMAIL=admin@lugaire.local
-AUTH_BOOTSTRAP_PASSWORD=lugai.re
+AUTH_BOOTSTRAP_PASSWORD=<set-a-unique-local-password>
 AUTH_BOOTSTRAP_ROLE=ADMIN
 ```
 
@@ -57,10 +57,9 @@ Notes:
 
 - Do not leave `DB_PASSWORD` empty if PostgreSQL requires a password.
 - `AUTH_BOOTSTRAP_PASSWORD` is only for the first administrator seed account.
-- Default bootstrap login:
-  - Email: `admin@lugaire.local`
-  - Password: `lugai.re`
-- The repository does not commit a real `.env` file; create one locally from `.env.example` if needed.
+- Set a unique local bootstrap password in your untracked environment file; do not use or publish a shared default.
+- Disable bootstrap creation after the first administrator is configured.
+- The repository does not commit a real `.env` file; create one locally from `.env.example` if needed. Treat previously committed credentials as exposed and rotate them before connecting a real database or deployment.
 
 ## Connecting to Supabase
 
