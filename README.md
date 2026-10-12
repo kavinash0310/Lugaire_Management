@@ -96,12 +96,11 @@ Invoke-RestMethod http://localhost:8080/api/v1/health
 - [x] Consistent API error response handling
 - [x] Git-friendly ignore and line-ending configuration
 
-## Authentication
+## Authentication and local security
 
-The backend seeds a local bootstrap administrator account on first run when the user table is empty.
+The backend can seed a local administrator account when the user table is empty. Configure a unique bootstrap password through your local backend environment file before running the app. Disable bootstrap creation after initial setup.
 
-- Email: `admin@lugaire.local`
-- Password: `Admin@12345`
+The repository has included demo credential defaults in source/configuration. Treat any committed credential or signing key as exposed: rotate real credentials, keep local values out of Git, and do not expose this learning project publicly as a production service.
 
 Open the login page at `http://localhost:3000/login`.
 
